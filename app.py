@@ -111,7 +111,7 @@ def process_data(data):
 if serial_component:
     voltage = process_data(serial_component)
     if voltage is not None:
-        st.write(f"Current Voltage: {voltage:.2f}V")
+        st.write(voltage)
 
 # Platform control logic
 def control_platform():
