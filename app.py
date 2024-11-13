@@ -128,6 +128,9 @@ def control_platform():
             st.success("Platform has returned to initial position.")
         st.sleep(0.1)
 
+# Auto Mode section
+st.subheader("Auto Mode")
+
 # Create two columns for Start and Stop buttons
 col1, col2 = st.columns(2)
 
@@ -141,7 +144,7 @@ with col2:
         st.session_state.control_running = False
 
 # Manual Mode section
-st.header("Manual Mode")
+st.subheader("Manual Mode")
 st.write("Use these controls when the automatic control is stopped.")
 
 # Create three columns for manual mode buttons
