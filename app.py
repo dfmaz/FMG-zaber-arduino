@@ -6,159 +6,25 @@ from zaber_motion.ascii import Connection
 from zaber_motion import Units
 from serial.tools import list_ports
 import streamlit.components.v1 as components
-
-# Initialize Zaber Motion Library
-Library.enable_device_db_store()
+import json
 
 # Initialize session state
 if 'control_running' not in st.session_state:
     st.session_state.control_running = False
 if 'initial_position' not in st.session_state:
     st.session_state.initial_position = None
+if 'current_voltage' not in st.session_state:
+    st.session_state.current_voltage = 0
 
-    ##
-
-def run_zaber_control(arduino_port, zaber_port, move_speed):
-    try:
-        # Set up serial connection to Arduino
-        try:
-            arduino = serial.Serial(arduino_port, 9600, timeout=1)
-            st.success(f"Connected to Arduino on {arduino_port}")
-        except serial.SerialException as e:
-            if "PermissionError(13, 'Acceso denegado.', None, 5)" in str(e):
-                st.error(f"Error: Could not open port '{arduino_port}'. The port might be in use by another application.")
-                return
-            else:
-                raise  # Re-raise the exception if it's not the specific error we're looking for
-
-        # Set up connection to Zaber device
-        with Connection.open_serial_port(zaber_port) as connection:
-            device = connection.detect_devices()[0]
-            axis = device.get_axis(1)
-            st.success(f"Connected to Zaber device on {zaber_port}")
-
-            # Store initial position
-            st.session_state.initial_position = axis.get_position()
-
-            voltage_threshold = 4.0  # Threshold in volts
-                                
-            # Create a placeholder for voltage display
-            voltage_placeholder = st.empty()
-
-            while st.session_state.control_running:
-                if arduino.in_waiting > 0:
-                    data = arduino.readline().decode('utf-8').rstrip()
-                
-                    voltage = float(data)
-
-                     # Update voltage display
-                    voltage_placeholder.metric("Current Voltage", f"{voltage:.2f}V")
-
-                    # Store initial position
-                   # initial_position = axis.get_position()
-
-                    if voltage < voltage_threshold:
-                        #st.warning(f"Voltage below {voltage_threshold}V. Moving Zaber platform to limit.")
-                        
-                        # Set the speed
-                        axis.settings.set('maxspeed', move_speed, Units.VELOCITY_MILLIMETRES_PER_SECOND)
-                        
-                        # Move to the positive limit
-                        axis.move_min()
-                        
-                        #st.success("Platform has reached its limit.")
-                        
-                        # Wait for 5 seconds
-                        #st.info("Waiting for 5 seconds before returning...")
-                        
-                        # Return to initial position
-                        #st.info("Returning to initial position...")
-                        #axis.move_absolute(initial_position)
-                        #st.success("Platform has returned to initial position.")
-
-    except Exception as e:
-        st.error(f"An error occurred: {str(e)}")
-    finally:
-        if 'arduino' in locals():
-            arduino.close()
-            st.info("Arduino connection closed")
-        st.session_state.control_running = False
-
-def start_control():
-    st.session_state.control_running = True
-
-def stop_control():
-    st.session_state.control_running = False
-
-def return_home(zaber_port):
-    try:
-        with Connection.open_serial_port(zaber_port) as connection:
-            device = connection.detect_devices()[0]
-            axis = device.get_axis(1)
-            if st.session_state.initial_position is not None:
-                st.info("Returning to home position...")
-                axis.move_absolute(st.session_state.initial_position)
-                while axis.is_busy():
-                        time.sleep(0.1)
-                st.success("Platform has returned to home position.")
-            else:
-                st.warning("Home position not set. Please start control first.")
-    except Exception as e:
-        st.error(f"An error occurred while returning home: {str(e)}")
-
-def move_to_minimum(zaber_port):
-    try:
-        with Connection.open_serial_port(zaber_port) as connection:
-            device = connection.detect_devices()[0]
-            axis = device.get_axis(1)
-            st.info("Moving to minimum position...")
-            axis.move_max()
-            while axis.is_busy():
-                time.sleep(0.1)
-            st.success("Platform has reached its minimum position.")
-    except Exception as e:
-        st.error(f"An error occurred while moving to minimum: {str(e)}")
-
-def move_relative(zaber_port, distance):
-    try:
-        with Connection.open_serial_port(zaber_port) as connection:
-            device = connection.detect_devices()[0]
-            axis = device.get_axis(1)
-            st.info(f"Moving {distance} mm relatively...")
-            axis.move_relative(-distance, Units.LENGTH_MILLIMETRES)
-            while axis.is_busy():
-                time.sleep(0.1)
-            st.success(f"Platform has moved {distance} mm.")
-    except Exception as e:
-        st.error(f"An error occurred during relative movement: {str(e)}")
-
-# App layout
-st.set_page_config(layout='wide')
-st.title('Zaber Platform Control with Arduino 🤖')
-
-with  st.sidebar:
-    st.image('media/logo_about.png')
-
-## Automatic Mode section
-st.subheader("Auto Mode")
-
-# Get list of available serial ports
-available_ports = [port.device for port in list_ports.comports()]
-
-# Text input for Arduino port
-arduino_port = st.text_input("Enter Arduino Port", value="/dev/ttyACM0")
-
-# Text input for Zaber port
-zaber_port = st.text_input("Enter Zaber Port", value="/dev/ttyUSB0")
-
-# Set  platform speed
-move_speed = st.number_input("Platform Speed (mm/s)", value=10.0, min_value=0.1, max_value=700.0)
+# Update the title with an Arduino emoji
+st.title("Zaber Platform Control with Arduino 🤖")
 
 # Web Serial API JavaScript code
 js_code = """
 <script>
 let port;
 let reader;
+let writer;
 
 async function connectSerial() {
     try {
@@ -169,6 +35,10 @@ async function connectSerial() {
         port.readable.pipeTo(decoder.writable);
         const inputStream = decoder.readable;
         reader = inputStream.getReader();
+        
+        const encoder = new TextEncoderStream();
+        encoder.readable.pipeTo(port.writable);
+        writer = encoder.writable.getWriter();
         
         document.getElementById('status').textContent = 'Connected';
         document.getElementById('disconnect').disabled = false;
@@ -193,8 +63,11 @@ async function readSerialData() {
         const { value, done } = await reader.read();
         if (value) {
             document.getElementById('serialData').textContent = value;
-            // You can send this value back to Python using Streamlit's 
-            // component communication mechanism if needed
+            // Send data to Streamlit
+            window.parent.postMessage({
+                type: 'streamlit:setComponentValue',
+                value: value
+            }, '*');
         }
         if (done) {
             console.log('Serial port closed');
@@ -205,58 +78,88 @@ async function readSerialData() {
 }
 
 async function writeSerialData(data) {
-    const encoder = new TextEncoder();
-    const writer = port.writable.getWriter();
-    await writer.write(encoder.encode(data));
-    writer.releaseLock();
+    await writer.write(data);
 }
+
+window.writeSerialData = writeSerialData;
 </script>
 
 <button onclick="connectSerial()">Connect Serial</button>
 <button id="disconnect" onclick="disconnectSerial()" disabled>Disconnect</button>
 <p>Status: <span id="status">Not connected</span></p>
 <p>Serial Data: <span id="serialData"></span></p>
-<input type="text" id="sendData" placeholder="Data to send">
-<button onclick="writeSerialData(document.getElementById('sendData').value)">Send</button>
 """
 
 # Embed the JavaScript code
-components.html(js_code, height=200)
+serial_component = components.html(js_code, height=200)
 
-# Create two columns for auto mode buttons
+# Function to send command to Arduino
+def send_command(command):
+    js_code = f"writeSerialData('{command}');"
+    components.html(f"<script>{js_code}</script>", height=0)
+
+# Function to process received data
+def process_data(data):
+    try:
+        voltage = float(data)
+        st.session_state.current_voltage = voltage
+        return voltage
+    except ValueError:
+        return None
+
+# Check for new data from serial component
+if serial_component:
+    voltage = process_data(serial_component)
+    if voltage is not None:
+        st.write(f"Current Voltage: {voltage:.2f}V")
+
+# Platform control logic
+def control_platform():
+    voltage_threshold = 4.0
+    while st.session_state.control_running:
+        if st.session_state.current_voltage < voltage_threshold:
+            st.warning(f"Voltage below {voltage_threshold}V. Moving Zaber platform to limit.")
+            send_command("MOVE_MAX")
+            st.success("Platform has reached its limit.")
+            st.info("Waiting for 5 seconds before returning...")
+            st.sleep(5)
+            st.info("Returning to initial position...")
+            send_command("MOVE_HOME")
+            st.success("Platform has returned to initial position.")
+        st.sleep(0.1)
+
+# Create two columns for Start and Stop buttons
 col1, col2 = st.columns(2)
 
 with col1:
-    if st.button("Start Control", on_click=start_control, disabled=st.session_state.control_running):
-        st.write("Control started")
+    if st.button("Start Control", disabled=st.session_state.control_running):
+        st.session_state.control_running = True
+        control_platform()
 
 with col2:
-    if st.button("Stop Control", on_click=stop_control, disabled=not st.session_state.control_running):
-        st.write("Control stopped")
+    if st.button("Stop Control", disabled=not st.session_state.control_running):
+        st.session_state.control_running = False
 
-## Manual Mode section
-st.subheader("Manual Mode")
+# Manual Mode section
+st.header("Manual Mode")
 st.write("Use these controls when the automatic control is stopped.")
 
 # Create three columns for manual mode buttons
 col3, col4, col5 = st.columns(3)
 
 with col3:
-    if st.button("Return Home", on_click=lambda: return_home(zaber_port), disabled=st.session_state.control_running):
-        st.write("Returning to home position")
+    if st.button("Return Home", disabled=st.session_state.control_running):
+        send_command("MOVE_HOME")
 
 with col4:
-    if st.button("Move to Minimum", on_click=lambda: move_to_minimum(zaber_port), disabled=st.session_state.control_running):
-        st.write("Moving to minimum position")
+    if st.button("Move to Minimum", disabled=st.session_state.control_running):
+        send_command("MOVE_MIN")
 
 # Relative movement input and button
 with col5:
     relative_distance = st.number_input("Relative Move (mm)", value=0.0, step=0.1)
-    if st.button("Move Relative", on_click=lambda: move_relative(zaber_port, relative_distance), disabled=st.session_state.control_running):
-        st.write(f"Moving {relative_distance} mm relatively")
-
-if st.session_state.control_running:
-    run_zaber_control(arduino_port, zaber_port, move_speed)
+    if st.button("Move Relative", disabled=st.session_state.control_running):
+        send_command(f"MOVE_REL {relative_distance}")
 
 # Footer section
 # Centered footer section
