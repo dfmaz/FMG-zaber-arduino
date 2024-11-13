@@ -94,6 +94,10 @@ def send_command(command):
 
 # Function to process received data
 def process_data(data):
+    if not isinstance(data, str):
+        st.warning("No data received from serial port yet.")
+        return None
+    
     try:
         # Strip whitespace and remove any non-numeric characters except the decimal point
         cleaned_data = ''.join(char for char in data.strip() if char.isdigit() or char == '.')
@@ -112,9 +116,13 @@ def process_data(data):
 
 # Check for new data from serial component
 if serial_component:
-    voltage = process_data(serial_component)
-    if voltage is not None:
-        st.write(f"Current Voltage: {voltage:.2f}V")
+    data = serial_component.get('value', None)
+    if data is not None:
+        voltage = process_data(data)
+        if voltage is not None:
+            st.write(f"Current Voltage: {voltage:.2f}V")
+    else:
+        st.write("Waiting for data from serial port...")
 
 # Platform control logic
 def control_platform():
