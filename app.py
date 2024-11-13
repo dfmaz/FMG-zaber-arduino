@@ -194,5 +194,8 @@ st.markdown("""
 ---
 <div style="text-align: center;">
     <strong>2024 © <a href="https://mfluidosunex.es/" target="_blank">FMG Uex</a> — All rights reserved.</strong><br>
+    <a href="https://github.com/dfmaz/FMG-zaber-arduino/tree/main" target="_blank">
+        <img src="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png" alt="GitHub Logo" style="height: 20px; width: 20px;"/>
+    </a>
 </div>
 """, unsafe_allow_html=True)

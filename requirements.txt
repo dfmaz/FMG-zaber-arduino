@@ -1,0 +1,3 @@
+streamlit==1.40.1
+pyserial==3.5
+zaber-motion==7.2.0
