@@ -101,7 +101,7 @@ def send_command(command):
 # Function to process received data
 def process_data(data):
     try:
-        voltage = float(data)
+        voltage = data
         st.session_state.current_voltage = voltage
         return voltage
     except ValueError:
