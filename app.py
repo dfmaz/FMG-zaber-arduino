@@ -58,10 +58,7 @@ async function readSerialData() {
         if (value) {
             document.getElementById('serialData').textContent = value;
             // Send data to Streamlit
-            window.parent.postMessage({
-                type: 'streamlit:setComponentValue',
-                value: value
-            }, '*');
+            window.Streamlit.setComponentValue(value);
         }
         if (done) {
             console.log('Serial port closed');
@@ -94,8 +91,7 @@ def send_command(command):
 
 # Function to process received data
 def process_data(data):
-    if not isinstance(data, str):
-        st.warning("No data received from serial port yet.")
+    if data is None or not isinstance(data, str):
         return None
     
     try:
@@ -116,13 +112,12 @@ def process_data(data):
 
 # Check for new data from serial component
 if serial_component:
-    data = serial_component.get('value', None)
-    if data is not None:
-        voltage = process_data(data)
-        if voltage is not None:
-            st.write(f"Current Voltage: {voltage:.2f}V")
+    # The component itself is the data
+    voltage = process_data(serial_component)
+    if voltage is not None:
+        st.write(f"Current Voltage: {voltage:.2f}V")
     else:
-        st.write("Waiting for data from serial port...")
+        st.write("Waiting for valid voltage data...")
 
 # Platform control logic
 def control_platform():
