@@ -1,10 +1,4 @@
 import streamlit as st
-import serial
-import time
-from zaber_motion import Library
-from zaber_motion.ascii import Connection
-from zaber_motion import Units
-from serial.tools import list_ports
 import streamlit.components.v1 as components
 import json
 
@@ -101,7 +95,7 @@ def send_command(command):
 # Function to process received data
 def process_data(data):
     try:
-        voltage = data
+        voltage = float(data)
         st.session_state.current_voltage = voltage
         return voltage
     except ValueError:
@@ -111,7 +105,7 @@ def process_data(data):
 if serial_component:
     voltage = process_data(serial_component)
     if voltage is not None:
-        st.write(voltage)
+        st.write(f"Current Voltage: {voltage:.2f}V")
 
 # Platform control logic
 def control_platform():
@@ -128,9 +122,6 @@ def control_platform():
             st.success("Platform has returned to initial position.")
         st.sleep(0.1)
 
-# Auto Mode section
-st.subheader("Auto Mode")
-
 # Create two columns for Start and Stop buttons
 col1, col2 = st.columns(2)
 
@@ -144,7 +135,7 @@ with col2:
         st.session_state.control_running = False
 
 # Manual Mode section
-st.subheader("Manual Mode")
+st.header("Manual Mode")
 st.write("Use these controls when the automatic control is stopped.")
 
 # Create three columns for manual mode buttons
