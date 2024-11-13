@@ -95,10 +95,19 @@ def send_command(command):
 # Function to process received data
 def process_data(data):
     try:
-        voltage = float(data)
-        st.session_state.current_voltage = voltage
-        return voltage
-    except ValueError:
+        # Strip whitespace and remove any non-numeric characters except the decimal point
+        cleaned_data = ''.join(char for char in data.strip() if char.isdigit() or char == '.')
+        
+        if cleaned_data:
+            voltage = float(cleaned_data)
+            st.session_state.current_voltage = voltage
+            return voltage
+        else:
+            st.warning(f"Received invalid data: {data}")
+            return None
+    except ValueError as e:
+        st.error(f"Error converting data to float: {e}")
+        st.error(f"Received data: {data}")
         return None
 
 # Check for new data from serial component
