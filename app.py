@@ -5,6 +5,7 @@ from zaber_motion import Library
 from zaber_motion.ascii import Connection
 from zaber_motion import Units
 from serial.tools import list_ports
+import streamlit.components.v1 as components
 
 # Initialize Zaber Motion Library
 Library.enable_device_db_store()
@@ -145,13 +146,82 @@ st.subheader("Auto Mode")
 available_ports = [port.device for port in list_ports.comports()]
 
 # Text input for Arduino port
-arduino_port = st.text_input("Enter Arduino Port", value="")
+arduino_port = st.text_input("Enter Arduino Port", value="/dev/ttyACM0")
 
 # Text input for Zaber port
-zaber_port = st.text_input("Enter Zaber Port", value="")
+zaber_port = st.text_input("Enter Zaber Port", value="/dev/ttyUSB0")
 
 # Set  platform speed
 move_speed = st.number_input("Platform Speed (mm/s)", value=10.0, min_value=0.1, max_value=700.0)
+
+# Web Serial API JavaScript code
+js_code = """
+<script>
+let port;
+let reader;
+
+async function connectSerial() {
+    try {
+        port = await navigator.serial.requestPort();
+        await port.open({ baudRate: 9600 });
+        
+        const decoder = new TextDecoderStream();
+        port.readable.pipeTo(decoder.writable);
+        const inputStream = decoder.readable;
+        reader = inputStream.getReader();
+        
+        document.getElementById('status').textContent = 'Connected';
+        document.getElementById('disconnect').disabled = false;
+        readSerialData();
+    } catch (error) {
+        console.error('Error:', error);
+        document.getElementById('status').textContent = 'Connection failed';
+    }
+}
+
+async function disconnectSerial() {
+    if (reader) {
+        await reader.cancel();
+        await port.close();
+        document.getElementById('status').textContent = 'Disconnected';
+        document.getElementById('disconnect').disabled = true;
+    }
+}
+
+async function readSerialData() {
+    while (true) {
+        const { value, done } = await reader.read();
+        if (value) {
+            document.getElementById('serialData').textContent = value;
+            // You can send this value back to Python using Streamlit's 
+            // component communication mechanism if needed
+        }
+        if (done) {
+            console.log('Serial port closed');
+            reader.releaseLock();
+            break;
+        }
+    }
+}
+
+async function writeSerialData(data) {
+    const encoder = new TextEncoder();
+    const writer = port.writable.getWriter();
+    await writer.write(encoder.encode(data));
+    writer.releaseLock();
+}
+</script>
+
+<button onclick="connectSerial()">Connect Serial</button>
+<button id="disconnect" onclick="disconnectSerial()" disabled>Disconnect</button>
+<p>Status: <span id="status">Not connected</span></p>
+<p>Serial Data: <span id="serialData"></span></p>
+<input type="text" id="sendData" placeholder="Data to send">
+<button onclick="writeSerialData(document.getElementById('sendData').value)">Send</button>
+"""
+
+# Embed the JavaScript code
+components.html(js_code, height=200)
 
 # Create two columns for auto mode buttons
 col1, col2 = st.columns(2)
