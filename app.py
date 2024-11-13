@@ -144,11 +144,11 @@ st.subheader("Auto Mode")
 # Get list of available serial ports
 available_ports = [port.device for port in list_ports.comports()]
 
-# Dropdown for Arduino port selection
-arduino_port = st.selectbox("Select Arduino Port", available_ports, index=0 if available_ports else None)
+# Text input for Arduino port
+arduino_port = st.text_input("Enter Arduino Port", value="")
 
-# Dropdown for Zaber port selection
-zaber_port = st.selectbox("Select Zaber Port", available_ports, index=1 if len(available_ports) > 1 else None)
+# Text input for Zaber port
+zaber_port = st.text_input("Enter Zaber Port", value="")
 
 # Set  platform speed
 move_speed = st.number_input("Platform Speed (mm/s)", value=10.0, min_value=0.1, max_value=700.0)
